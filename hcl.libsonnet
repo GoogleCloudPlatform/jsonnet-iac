@@ -552,7 +552,8 @@
     // We want to sort by the value of hcldump, and only then add hclcomment,
     // otherwise we sort by the comments.
     local lines = [
-      std.lines(['#' + c for c in x.hclcomment if 'hclcomment' in x && add_comments]) + x.hcldump(null)
+      // A comment runs to the end of the line, so every line of it needs its own '#'.
+      std.lines(['#' + std.strReplace(c, '\n', '\n#') for c in x.hclcomment if 'hclcomment' in x && add_comments]) + x.hcldump(null)
       for x in
         std.sort(collectTopLevelBlocks(body), keyF=function(x) if 'type_labels_string' in x then x.type_labels_string else '')
     ];
