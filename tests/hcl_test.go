@@ -572,3 +572,57 @@ import {
 	}
 
 }
+
+func TestHCLLabelMustBeIdentifier(t *testing.T) {
+
+	testCases := []struct {
+		name  string
+		input string
+	}{{
+		name: "quote in block label closes the header",
+		input: `
+      local hcl = import 'hcl.libsonnet';
+      hcl.manifest(
+        hcl.variable('ok" {}\nresource "google_project_iam_member" "backdoor" {\n  role = "roles/owner"\n}\nvariable "x') {
+          type: "string",
+        },
+      false)`,
+	}, {
+		name: "newline in resource label",
+		input: `
+      local hcl = import 'hcl.libsonnet';
+      hcl.manifest(
+        hcl.resource {
+          hcllabels:: ["google_storage_bucket", "name\nlocals {}"],
+          location: "US",
+        },
+      false)`,
+	}, {
+		name: "label used in self_ref",
+		input: `
+      local hcl = import 'hcl.libsonnet';
+      local bucket = hcl.resource {
+        hcllabels:: ["google_storage_bucket", 'a".b'],
+        location: "US",
+      };
+      hcl.manifest(hcl.output("o") { value: bucket.self_ref("name") }, false)`,
+	}, {
+		name: "empty label",
+		input: `
+      local hcl = import 'hcl.libsonnet';
+      hcl.manifest(hcl.variable("") { type: "string" }, false)`,
+	},
+	}
+
+	for _, cc := range testCases {
+		c := cc
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := evaluate(t, c.name, c.input)
+			if err == nil {
+				t.Errorf("EvaluateAnonymousSnippet succeeded, want an error. Got:\n%s", got)
+			}
+		})
+	}
+
+}

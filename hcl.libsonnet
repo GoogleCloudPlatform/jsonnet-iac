@@ -136,7 +136,7 @@
     type_labels_string:: '%s %s' % [
       type,
       if 'hcllabels' in self then
-        '"' + std.join('" "', self.hcllabels) + '" '
+        '"' + std.join('" "', _checked_hcllabels(self.hcllabels)) + '" '
       else '',
     ],
     hcldump(ignored, indent_str='')::
@@ -174,7 +174,7 @@
       local block_type = std.strReplace(prefix, ' = ', '');
       local labels_string =
         if 'hcllabels' in self then
-          '" ' + std.join('" "', self.hcllabels) + '" '
+          '" ' + std.join('" "', _checked_hcllabels(self.hcllabels)) + '" '
         else ' ';
       _hcldump(block_type + labels_string, self, top_level_block=true, indent_str=indent_str),
   },
@@ -232,7 +232,7 @@
       //
       // if no attr and no count argument in resource then produces:
       //  <ref_prefix>.<hcl_label1>.<hcl_labelN>
-      std.join('.', [ref_prefix] + if 'hcllabels' in self then self.hcllabels else []) +
+      std.join('.', [ref_prefix] + if 'hcllabels' in self then _checked_hcllabels(self.hcllabels) else []) +
       // append [count.index] with assumption that by default a link to plural resource created from plural resource.
       (if 'count' in self then '[%s]' % index_expr else '')
       +
@@ -579,6 +579,23 @@
 
   local indent = '  ',
   local line_width = 80,
+
+  // Terraform block labels are identifiers, not arbitrary text.
+  // (https://developer.hashicorp.com/terraform/language/syntax/configuration#identifiers)
+  // They are written into the block header and into self_ref() expressions
+  // without quoting, so a label carrying a quote or a newline would terminate
+  // the header and let the rest of the label be parsed as top level HCL.
+  local _label_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-',
+  local _checked_hcllabels(labels) = [
+    local l = std.toString(label);
+    assert std.length(l) > 0 && std.foldl(
+      function(ok, c) ok && std.member(_label_chars, c),
+      std.stringChars(l),
+      true
+    ) : 'an HCL block label must be a non-empty identifier ([A-Za-z0-9_-]), got %s' % std.manifestJson(l);
+    l
+    for label in labels
+  ],
 
   local _dumpArray(block_prefix, value, indent_str) =
     // Sometimes lists are very long and unreadable.
