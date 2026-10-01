@@ -84,6 +84,25 @@ func TestBasicHCL(t *testing.T) {
 
 `,
 	}, {
+		name: "escaped backslashes and template markers",
+		input: `
+      local hcl = import 'hcl.libsonnet';
+      hcl.manifest(
+				hcl.resource {
+					hcllabels:: ["test", "name"],
+					trailing_backslash: hcl.escape_quotes_newlines('C:\\share\\'),
+					template_marker: hcl.escape_quotes_newlines('${file("/etc/passwd")}'),
+					directive_marker: hcl.escape_quotes_newlines('%{ if true }x%{ endif }'),
+				},
+			false)`,
+		want: `resource "test" "name" {
+  directive_marker   = "%%{ if true }x%%{ endif }"
+  template_marker    = "$${file(\"/etc/passwd\")}"
+  trailing_backslash = "C:\\share\\"
+}
+
+`,
+	}, {
 		name: "dictionary",
 		input: `
       local hcl = import 'hcl.libsonnet';

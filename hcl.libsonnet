@@ -484,7 +484,9 @@
   // It's a terraform style guide to express resource blocks in snake case.
   strToSnake(str): std.foldl(function(s, c) std.strReplace(s, c, '_'), ['-', '.', '/', ' ', '@', ':', '${', '}'], str),
 
-  // Escapes quotes and newlines in a terraform string.
+  // Escapes a value so terraform reads it as a literal string.
+  // Backslashes are escaped first, then quotes and newlines, then the "${" and
+  // "%{" template markers (terraform spells those literals "$${" and "%%{").
   // Example:
   //     hcl.resource {
   //       hcllabels:: ["test", "name"],
@@ -500,7 +502,11 @@
   // str = "test me with unescaped "quotes" inside and a
   //  new line"
   // }
-  escape_quotes_newlines(str):: std.strReplace(std.strReplace(str, '"', '\\"'), '\n', '\\n'),
+  escape_quotes_newlines(str):: std.foldl(
+    function(s, r) std.strReplace(s, r[0], r[1]),
+    [['\\', '\\\\'], ['"', '\\"'], ['\n', '\\n'], ['${', '$${'], ['%{', '%%{']],
+    str
+  ),
 
   // Generates HCL manifest file from the given body.
   // add_comments - optional. Defaults to true.
