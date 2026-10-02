@@ -572,3 +572,72 @@ import {
 	}
 
 }
+
+// A field name is emitted verbatim as an HCL attribute/argument name, so a name
+// carrying a newline or quote (e.g. a caller-supplied labels/metadata map key)
+// must fail evaluation instead of injecting extra HCL into the manifest.
+func TestHCLFieldNameMustBeIdentifier(t *testing.T) {
+	testCases := []struct {
+		name      string
+		input     string
+		wantError bool
+	}{{
+		name: "attribute name injection",
+		input: `
+      local hcl = import 'hcl.libsonnet';
+      hcl.manifest(
+        hcl.resource {
+          hcllabels:: ["test", "name"],
+          ['legit = "ok"\n  injected = "evil"']: "val",
+        },
+      false)`,
+		wantError: true,
+	}, {
+		name: "map key injection",
+		input: `
+      local hcl = import 'hcl.libsonnet';
+      hcl.manifest(
+        hcl.resource {
+          hcllabels:: ["test", "name"],
+          labels: { ['a = "x"\n  injected = "y"']: "val" },
+        },
+      false)`,
+		wantError: true,
+	}, {
+		name: "quote in field name",
+		input: `
+      local hcl = import 'hcl.libsonnet';
+      hcl.manifest(
+        hcl.resource {
+          hcllabels:: ["test", "name"],
+          ['bad"key']: "val",
+        },
+      false)`,
+		wantError: true,
+	}, {
+		name: "valid dashed label key",
+		input: `
+      local hcl = import 'hcl.libsonnet';
+      hcl.manifest(
+        hcl.resource {
+          hcllabels:: ["test", "name"],
+          labels: { 'comp-env-var-label': "from_comp" },
+        },
+      false)`,
+		wantError: false,
+	}}
+
+	for _, cc := range testCases {
+		c := cc
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := evaluate(t, c.name, c.input)
+			if c.wantError && err == nil {
+				t.Errorf("expected an evaluation error, got none")
+			}
+			if !c.wantError && err != nil {
+				t.Errorf("unexpected evaluation error: %v", err)
+			}
+		})
+	}
+}

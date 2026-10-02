@@ -580,6 +580,19 @@
   local indent = '  ',
   local line_width = 80,
 
+  // Object field names are emitted verbatim as HCL attribute/argument names
+  // (and as object-expression keys in maps like `labels`/`metadata`). Valid HCL
+  // names are made of letters, digits, underscores and dashes; any other
+  // character - most dangerously a newline or a double quote - lets a
+  // caller-supplied key (e.g. vm.label()/vm.metadata() keys, or any map value)
+  // break out of "name = value" and inject arbitrary HCL into the manifest.
+  local _hcl_name_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-',
+  local _checked_hclname(name) =
+    assert std.isString(name) && std.length(name) > 0
+           && std.foldl(function(ok, c) ok && std.length(std.findSubstr(c, _hcl_name_chars)) > 0, std.stringChars(name), true)
+           : 'an HCL field name must be a non-empty [A-Za-z0-9_-] identifier, got: %s' % std.toString(name);
+    name,
+
   local _dumpArray(block_prefix, value, indent_str) =
     // Sometimes lists are very long and unreadable.
     // First we try to put all values in one line, and if its too long, we split.
@@ -636,7 +649,7 @@
       local pad = if g.assign
       then std.join('', [' ' for i in std.range(1, max_len - std.length(field))])
       else '';
-      _hcldump(next_indent + field + pad + ' = ', value[field], top_level_block=false, indent_str=next_indent)
+      _hcldump(next_indent + _checked_hclname(field) + pad + ' = ', value[field], top_level_block=false, indent_str=next_indent)
       for field in g.fields
     ],
 
